@@ -1,0 +1,34 @@
+/target/
+
+# Rust build artifacts
+debug/
+release/
+*.rs.bk
+*.pdb
+
+# Local environment and editor state
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Coverage and profiling output
+tarpaulin-report.html
+coverage/
+*.profraw
+*.profdata
+
+# Local reference assets
+dd-ref.jpg
+
+
+# Added by cargo
+
+/target
