@@ -11,6 +11,7 @@ const TEXT: u8 = 252;
 const MUTED: u8 = 244;
 const FAINT: u8 = 240;
 const SELECTED: u8 = 220;
+const SELECTED_TEXT: u8 = 235;
 const WHITE: u8 = 255;
 const PALETTE: [u8; 10] = [119, 116, 111, 75, 99, 135, 205, 168, 215, 229];
 const START_ANGLE: f64 = 0.62 * PI;
@@ -214,12 +215,24 @@ fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
 
     let children = app.visible_children();
     let list_limit = area.height.saturating_sub(15) as usize;
+    let selected_index = app.selected_index().unwrap_or(0);
+    let (list_start, visible_children) = visible_list_window(&children, selected_index, list_limit);
     let mut row = title_y + 2;
-    for (idx, child) in children.iter().take(list_limit).enumerate() {
+    if list_start > 0 && row < area.y + area.height {
+        canvas.write(
+            area.x + 5,
+            row,
+            &format!("↑ {} above", list_start),
+            Style::fg(FAINT),
+        );
+        row += 1;
+    }
+    for (idx, child) in visible_children.iter().enumerate() {
         let node = app.tree.get(*child);
-        let color = PALETTE[idx % PALETTE.len()];
+        let palette_index = list_start + idx;
+        let color = PALETTE[palette_index % PALETTE.len()];
         let style = if *child == app.selected {
-            Style::fg(WHITE).on_bg(PANEL_2).bold()
+            Style::fg(SELECTED_TEXT).on_bg(SELECTED).bold()
         } else {
             Style::fg(TEXT)
         };
@@ -227,16 +240,22 @@ fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
             fill_rect(
                 canvas,
                 Rect {
-                    x: area.x + 2,
+                    x: area.x + 1,
                     y: row,
-                    width: area.width.saturating_sub(4),
+                    width: area.width.saturating_sub(2),
                     height: 1,
                 },
                 ' ',
-                Style::bg(PANEL_2),
+                Style::bg(SELECTED),
             );
         }
-        canvas.put(area.x + 3, row, '•', Style::fg(color));
+        let marker_style = if *child == app.selected {
+            Style::fg(SELECTED_TEXT).on_bg(SELECTED).bold()
+        } else {
+            Style::fg(color)
+        };
+        let marker = if *child == app.selected { '▶' } else { '•' };
+        canvas.put(area.x + 3, row, marker, marker_style);
         canvas.write(
             area.x + 5,
             row,
@@ -252,11 +271,14 @@ fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
         row += 1;
     }
 
-    if children.len() > list_limit {
+    let hidden_after = children
+        .len()
+        .saturating_sub(list_start + visible_children.len());
+    if hidden_after > 0 {
         canvas.write(
             area.x + 5,
             row,
-            &format!("+ {} smaller objects...", children.len() - list_limit),
+            &format!("↓ {} below", hidden_after),
             Style::fg(FAINT),
         );
         row += 1;
@@ -329,6 +351,29 @@ fn draw_status(canvas: &mut Canvas, app: &App, area: Rect) {
         &truncate(&app.message, area.width.saturating_sub(6) as usize),
         Style::fg(TEXT).on_bg(PANEL),
     );
+}
+
+fn visible_list_window(
+    children: &[NodeId],
+    selected_index: usize,
+    list_limit: usize,
+) -> (usize, &[NodeId]) {
+    if children.is_empty() || list_limit == 0 {
+        return (0, &[]);
+    }
+
+    let reserve_top = usize::from(selected_index > 0 && children.len() > list_limit);
+    let reserve_bottom =
+        usize::from(selected_index + 1 < children.len() && children.len() > list_limit);
+    let visible_limit = list_limit
+        .saturating_sub(reserve_top + reserve_bottom)
+        .max(1);
+    let half_window = visible_limit / 2;
+    let max_start = children.len().saturating_sub(visible_limit);
+    let start = selected_index.saturating_sub(half_window).min(max_start);
+    let end = (start + visible_limit).min(children.len());
+
+    (start, &children[start..end])
 }
 
 fn draw_help(canvas: &mut Canvas, width: u16, height: u16) {

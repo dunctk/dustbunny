@@ -19,11 +19,9 @@ text {
 <rect x="0" y="90" width="1008" height="18" fill="#262626"/>
 <rect x="0" y="108" width="1008" height="18" fill="#262626"/>
 <rect x="0" y="126" width="1008" height="18" fill="#262626"/>
-<rect x="0" y="144" width="720" height="18" fill="#262626"/>
-<rect x="720" y="144" width="9" height="18" fill="#444444"/>
-<rect x="729" y="144" width="9" height="18" fill="#262626"/>
-<rect x="738" y="144" width="252" height="18" fill="#444444"/>
-<rect x="990" y="144" width="18" height="18" fill="#262626"/>
+<rect x="0" y="144" width="711" height="18" fill="#262626"/>
+<rect x="711" y="144" width="288" height="18" fill="#ffd700"/>
+<rect x="999" y="144" width="9" height="18" fill="#262626"/>
 <rect x="0" y="162" width="1008" height="18" fill="#262626"/>
 <rect x="0" y="180" width="1008" height="18" fill="#262626"/>
 <rect x="0" y="198" width="1008" height="18" fill="#262626"/>
@@ -136,10 +134,10 @@ text {
 <text x="972" y="110" fill="#eeeeee">GB</text>
 <text x="702" y="128" fill="#444444">│</text>
 <text x="702" y="146" fill="#444444">│</text>
-<text x="729" y="146" fill="#87ff5f">•</text>
-<text x="747" y="146" fill="#eeeeee" font-weight="700">Users</text>
-<text x="936" y="146" fill="#eeeeee" font-weight="700">198</text>
-<text x="972" y="146" fill="#eeeeee" font-weight="700">GB</text>
+<text x="729" y="146" fill="#262626" font-weight="700">▶</text>
+<text x="747" y="146" fill="#262626" font-weight="700">Users</text>
+<text x="936" y="146" fill="#262626" font-weight="700">198</text>
+<text x="972" y="146" fill="#262626" font-weight="700">GB</text>
 <text x="702" y="164" fill="#444444">│</text>
 <text x="729" y="164" fill="#87d7d7">•</text>
 <text x="747" y="164" fill="#d0d0d0">Projects</text>
