@@ -1,8 +1,16 @@
 # DustBunny
 
+<p align="center">
+  <img src="img/logo.png" alt="DustBunny logo" width="260">
+</p>
+
 DustBunny is a Rust terminal disk-usage explorer inspired by DaisyDisk. It scans a directory, shows the largest space consumers in a radial sunburst-style TUI, and lets you drill through the tree from the keyboard.
 
-![DustBunny logo](img/logo.png)
+<p align="center">
+  <img src="img/tui-screenshot.svg" alt="DustBunny TUI showing a simulated interesting disk">
+</p>
+
+The screenshot above is generated from a simulated disk tree and refreshed automatically on every push, so it tracks the latest TUI renderer.
 
 ## Features
 
@@ -45,6 +53,12 @@ Print a plain summary without launching the TUI:
 
 ```bash
 cargo run -- --summary .
+```
+
+Regenerate the README demo screenshot:
+
+```bash
+cargo run -- --demo-screenshot img/tui-screenshot.svg
 ```
 
 ## Controls

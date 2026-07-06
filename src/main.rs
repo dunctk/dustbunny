@@ -1,7 +1,9 @@
 mod app;
+mod demo;
 mod layout;
 mod model;
 mod scanner;
+mod screenshot;
 mod splash;
 mod terminal;
 mod ui;
@@ -17,6 +19,16 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().skip(1).collect();
     if args.iter().any(|arg| arg == "-h" || arg == "--help") {
         print_help();
+        return Ok(());
+    }
+
+    if let Some(index) = args.iter().position(|arg| arg == "--demo-screenshot") {
+        let output = args
+            .get(index + 1)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("img/tui-screenshot.svg"));
+        let app = demo::app();
+        screenshot::write_demo_svg(&app, output)?;
         return Ok(());
     }
 
@@ -61,6 +73,7 @@ fn print_help() {
     println!(
         "dustbunny - terminal disk usage explorer\n\n\
 Usage:\n  dustbunny [PATH]\n  dustbunny --summary [PATH]\n\n\
+  dustbunny --demo-screenshot [OUTPUT.svg]\n\n\
 Keys:\n  q/Esc quit, Enter drill in, Backspace parent, arrows select,\n  Tab switch focus, r rescan, o open, ? help"
     );
 }

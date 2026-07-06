@@ -1,0 +1,36 @@
+name: Update README screenshot
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Regenerate TUI screenshot
+        run: cargo run -- --demo-screenshot img/tui-screenshot.svg
+
+      - name: Commit updated screenshot
+        run: |
+          if git diff --quiet -- img/tui-screenshot.svg; then
+            echo "Screenshot is already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add img/tui-screenshot.svg
+          git commit -m "Update generated TUI screenshot"
+          git push
