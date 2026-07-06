@@ -1,5 +1,6 @@
 mod app;
 mod demo;
+mod dust_backend;
 mod layout;
 mod model;
 mod scanner;

@@ -15,6 +15,7 @@ The screenshot above is generated from a simulated disk tree and refreshed autom
 ## Features
 
 - Radial, DaisyDisk-like disk map rendered directly in the terminal.
+- Dust-style scanner backend with parallel traversal and allocated-size accounting.
 - High-resolution half-block drawing for smoother arcs.
 - Right-side size legend and selected item details.
 - Animated ASCII splash screen while scanning.
@@ -79,8 +80,10 @@ Deletion is intentionally not implemented yet.
 
 ## Status
 
-This is an early working prototype. It currently uses a standard-library scanner and terminal renderer, with no external runtime dependencies.
+This is an early working prototype. The scanner backend follows the maintained `du-dust` design for parallel traversal, allocated-size accounting, symlink handling, hard-link deduplication, and permission/error collection.
 
 ## License
 
 MIT
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dust backend attribution.
