@@ -35,7 +35,7 @@ impl Terminal {
             });
 
         let _ = Command::new("stty")
-            .args(["raw", "-echo"])
+            .args(["raw", "-echo", "min", "0", "time", "1"])
             .stderr(Stdio::null())
             .status();
         print!("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H");
@@ -68,46 +68,21 @@ impl Drop for Terminal {
     }
 }
 
-pub fn read_key() -> io::Result<Key> {
+pub fn read_key() -> io::Result<Option<Key>> {
     let mut byte = [0_u8; 1];
-    io::stdin().read_exact(&mut byte)?;
-
-    match byte[0] {
-        b'\r' | b'\n' => Ok(Key::Enter),
-        b'\t' => Ok(Key::Tab),
-        0x7f | 0x08 => Ok(Key::Backspace),
-        0x1b => read_escape_sequence(),
-        byte if byte.is_ascii() && !byte.is_ascii_control() => Ok(Key::Char(byte as char)),
-        _ => Ok(Key::Unknown),
-    }
-}
-
-pub fn terminal_size() -> (u16, u16) {
-    let output = Command::new("stty")
-        .arg("size")
-        .stderr(Stdio::null())
-        .output();
-    if let Ok(output) = output
-        && output.status.success()
-    {
-        let size = String::from_utf8_lossy(&output.stdout);
-        let mut parts = size.split_whitespace();
-        if let (Some(rows), Some(cols)) = (parts.next(), parts.next())
-            && let (Ok(rows), Ok(cols)) = (rows.parse::<u16>(), cols.parse::<u16>())
-        {
-            return (cols.max(60), rows.max(20));
-        }
+    if io::stdin().read(&mut byte)? == 0 {
+        return Ok(None);
     }
 
-    let cols = std::env::var("COLUMNS")
-        .ok()
-        .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(100);
-    let rows = std::env::var("LINES")
-        .ok()
-        .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(30);
-    (cols.max(60), rows.max(20))
+    let key = match byte[0] {
+        b'\r' | b'\n' => Key::Enter,
+        b'\t' => Key::Tab,
+        0x7f | 0x08 => Key::Backspace,
+        0x1b => read_escape_sequence()?,
+        byte if byte.is_ascii() && !byte.is_ascii_control() => Key::Char(byte as char),
+        _ => Key::Unknown,
+    };
+    Ok(Some(key))
 }
 
 fn read_escape_sequence() -> io::Result<Key> {
@@ -124,4 +99,32 @@ fn read_escape_sequence() -> io::Result<Key> {
         },
         _ => Ok(Key::Esc),
     }
+}
+
+pub fn terminal_size() -> (u16, u16) {
+    let output = Command::new("stty")
+        .arg("size")
+        .stderr(Stdio::null())
+        .output();
+    if let Ok(output) = output
+        && output.status.success()
+    {
+        let size = String::from_utf8_lossy(&output.stdout);
+        let mut parts = size.split_whitespace();
+        if let (Some(rows), Some(cols)) = (parts.next(), parts.next())
+            && let (Ok(rows), Ok(cols)) = (rows.parse::<u16>(), cols.parse::<u16>())
+        {
+            return (cols.max(1), rows.max(1));
+        }
+    }
+
+    let cols = std::env::var("COLUMNS")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(100);
+    let rows = std::env::var("LINES")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(30);
+    (cols.max(1), rows.max(1))
 }

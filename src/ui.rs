@@ -31,24 +31,32 @@ const SELECTED_EDGE_WIDTH: f64 = 0.22;
 const SELECTED_TEXT_WIDTH: f64 = 0.5;
 
 pub fn render(app: &App, width: u16, height: u16) -> String {
-    let width = width.max(80);
-    let height = height.max(24);
+    let width = width.max(1);
+    let height = height.max(1);
     let mut canvas = Canvas::new(width, height, Style::bg(BG));
 
+    if width < 30 || height < 10 {
+        canvas.write(1, 0, "dustbunny", Style::fg(WHITE).bold());
+        canvas.write(1, 1, "terminal too small", Style::fg(MUTED));
+        return canvas.finish();
+    }
+
+    let header_height = if height >= 16 { 4 } else { 3 };
+    let status_height = if height >= 14 { 2 } else { 1 };
     let header = Rect {
         x: 0,
         y: 0,
         width,
-        height: 4,
+        height: header_height,
     };
     let status = Rect {
         x: 0,
-        y: height - 2,
+        y: height.saturating_sub(status_height),
         width,
-        height: 2,
+        height: status_height,
     };
     let body_height = height.saturating_sub(header.height + status.height);
-    let side_width = ((width as f32 * 0.31) as u16).clamp(30, 44);
+    let side_width = sidebar_width(width);
     let map = Rect {
         x: 0,
         y: header.height,
@@ -67,7 +75,9 @@ pub fn render(app: &App, width: u16, height: u16) -> String {
 
     draw_header(&mut canvas, app, header);
     draw_sunburst(&mut canvas, app, map, &geometry, &segments);
-    draw_sidebar(&mut canvas, app, side, &segments);
+    if side.width > 0 {
+        draw_sidebar(&mut canvas, app, side, &segments);
+    }
     draw_status(&mut canvas, app, status);
 
     if app.show_help {
@@ -77,37 +87,53 @@ pub fn render(app: &App, width: u16, height: u16) -> String {
     canvas.finish()
 }
 
+fn sidebar_width(width: u16) -> u16 {
+    if width < 124 {
+        0
+    } else if width < 144 {
+        34
+    } else {
+        ((width as f32 * 0.31) as u16).clamp(34, 46)
+    }
+}
+
 fn draw_header(canvas: &mut Canvas, app: &App, area: Rect) {
     let root = app.tree.get(app.tree.root());
-    let left = area.x + 3;
+    let left = area.x + 2;
     canvas.write(left, area.y + 1, "Dustbunny", Style::fg(WHITE).bold());
-    draw_pill(
-        canvas,
-        left + 12,
-        area.y + 1,
-        "Disks and Folders",
-        Style::new(Some(WHITE), Some(ACTIVE_PILL), true, false),
-    );
-    draw_pill(
-        canvas,
-        left + 31,
-        area.y + 1,
-        &truncate(&app.tree.get(app.view_root).name, 24),
-        Style::new(Some(INACTIVE_PILL_TEXT), Some(INACTIVE_PILL), false, false),
-    );
-    canvas.write(
-        left,
-        area.y + 2,
-        &truncate(
-            &format!(
-                "{}   {}",
-                app.tree.breadcrumb(app.view_root),
-                root.path.display()
+    if area.width >= 48 {
+        draw_pill(
+            canvas,
+            left + 12,
+            area.y + 1,
+            "Disks and Folders",
+            Style::new(Some(WHITE), Some(ACTIVE_PILL), true, false),
+        );
+    }
+    if area.width >= 70 {
+        draw_pill(
+            canvas,
+            left + 31,
+            area.y + 1,
+            &truncate(&app.tree.get(app.view_root).name, 24),
+            Style::new(Some(INACTIVE_PILL_TEXT), Some(INACTIVE_PILL), false, false),
+        );
+    }
+    if area.height >= 3 {
+        canvas.write(
+            left,
+            area.y + 2,
+            &truncate(
+                &format!(
+                    "{}   {}",
+                    app.tree.breadcrumb(app.view_root),
+                    root.path.display()
+                ),
+                area.width.saturating_sub(4) as usize,
             ),
-            area.width.saturating_sub(6) as usize,
-        ),
-        Style::fg(MUTED),
-    );
+            Style::fg(MUTED),
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -120,12 +146,35 @@ struct SunburstGeometry {
 }
 
 fn compute_geometry(area: Rect) -> SunburstGeometry {
-    let cx = area.x as f64 + area.width as f64 * 0.48;
-    let cy_hi = (area.y as f64 + area.height as f64 * 0.52) * 2.0;
-    let max_radius =
-        ((area.width as f64 / 2.08).min(area.height as f64 * 2.0 / 2.2) - 1.0).max(5.0);
+    let portrait = area.width < 124;
+    let side_margin = if portrait { 8.0 } else { 2.0 };
+    let left = area.x as f64 + side_margin;
+    let right = area.x as f64 + area.width as f64 - side_margin - 1.0;
+    let top_hi = (area.y as f64 + if portrait { 4.0 } else { 2.0 }) * 2.0;
+    let bottom_margin = if portrait {
+        9.0
+    } else if area.height >= 22 {
+        4.0
+    } else {
+        2.0
+    };
+    let bottom_hi = (area.y as f64 + area.height as f64 - bottom_margin).max(area.y as f64) * 2.0;
+    let cx = (left + right) / 2.0;
+    let cy_hi = if portrait {
+        top_hi + (bottom_hi - top_hi) * 0.46
+    } else {
+        (top_hi + bottom_hi) / 2.0
+    };
+    let mut max_radius = (cx - left)
+        .min(right - cx)
+        .min(cy_hi - top_hi)
+        .min(bottom_hi - cy_hi);
+    if portrait {
+        max_radius *= 0.78;
+    }
+    let max_radius = max_radius.max(3.2);
     let center_radius = (max_radius * 0.18).clamp(2.8, 5.5);
-    let max_depth = if max_radius > 13.0 { 5 } else { 4 };
+    let max_depth = if portrait || max_radius <= 13.0 { 4 } else { 5 };
     let ring_width = ((max_radius - center_radius) / max_depth as f64).max(1.6);
     SunburstGeometry {
         cx,
@@ -410,11 +459,13 @@ fn visible_list_window(
 }
 
 fn draw_help(canvas: &mut Canvas, width: u16, height: u16) {
+    let popup_width = 50.min(width.saturating_sub(4)).max(20);
+    let popup_height = 12.min(height.saturating_sub(2)).max(4);
     let popup = Rect {
-        x: width / 2 - 25,
-        y: height / 2 - 6,
-        width: 50,
-        height: 12,
+        x: width.saturating_sub(popup_width) / 2,
+        y: height.saturating_sub(popup_height) / 2,
+        width: popup_width,
+        height: popup_height,
     };
     fill_rect(canvas, popup, ' ', Style::bg(DIVIDER));
     outline(canvas, popup, Style::fg(FAINT).on_bg(DIVIDER));
@@ -436,11 +487,15 @@ fn draw_help(canvas: &mut Canvas, width: u16, height: u16) {
         "d             delete placeholder, no hard delete",
         "?             close this help",
     ];
-    for (idx, line) in lines.iter().enumerate() {
+    for (idx, line) in lines
+        .iter()
+        .take(popup.height.saturating_sub(2) as usize)
+        .enumerate()
+    {
         canvas.write(
             popup.x + 2,
             popup.y + 1 + idx as u16,
-            line,
+            &truncate(line, popup.width.saturating_sub(4) as usize),
             Style::fg(TEXT).on_bg(DIVIDER),
         );
     }
@@ -448,7 +503,15 @@ fn draw_help(canvas: &mut Canvas, width: u16, height: u16) {
 
 fn sunburst_segments(tree: &FileTree, root: NodeId, max_depth: usize) -> Vec<Segment> {
     let mut segments = Vec::new();
-    collect_segments(tree, root, START_ANGLE, END_ANGLE, 0, max_depth, &mut segments);
+    collect_segments(
+        tree,
+        root,
+        START_ANGLE,
+        END_ANGLE,
+        0,
+        max_depth,
+        &mut segments,
+    );
     segments
 }
 
@@ -471,7 +534,11 @@ fn hsl(hue: f64, saturation: f64, lightness: f64) -> Rgb {
         let v = (l * 255.0).round() as u8;
         return (v, v, v);
     }
-    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let q = if l < 0.5 {
+        l * (1.0 + s)
+    } else {
+        l + s - l * s
+    };
     let p = 2.0 * l - q;
     let r = hue_channel(p, q, h + 1.0 / 3.0);
     let g = hue_channel(p, q, h);
@@ -636,7 +703,15 @@ fn collect_segments(
                 depth,
                 color,
             });
-            collect_segments(tree, child, cursor, child_end, depth + 1, max_depth, segments);
+            collect_segments(
+                tree,
+                child,
+                cursor,
+                child_end,
+                depth + 1,
+                max_depth,
+                segments,
+            );
         }
         cursor = child_end;
     }
@@ -855,15 +930,33 @@ impl Canvas {
         output.push_str(&ansi_style(current));
 
         for y in 0..self.height {
-            for x in 0..self.width {
-                let cell = self.cells[y as usize * self.width as usize + x as usize];
+            let row_start = y as usize * self.width as usize;
+            let row = &self.cells[row_start..row_start + self.width as usize];
+            let printable_width = row
+                .iter()
+                .rposition(|cell| {
+                    cell.ch != ' '
+                        || cell.style.fg.is_some()
+                        || cell.style.bg != self.default_style.bg
+                        || cell.style.bold
+                        || cell.style.dim
+                })
+                .map(|index| index + 1)
+                .unwrap_or(0)
+                .min(self.width.saturating_sub(1) as usize);
+
+            for x in 0..printable_width {
+                let cell = self.cells[y as usize * self.width as usize + x];
                 if cell.style != current {
                     output.push_str(&ansi_style(cell.style));
                     current = cell.style;
                 }
                 output.push(cell.ch);
             }
-            output.push_str("\x1b[0m");
+            if current != self.default_style {
+                output.push_str(&ansi_style(self.default_style));
+            }
+            output.push_str("\x1b[K\x1b[0m");
             current = self.default_style;
             if y + 1 < self.height {
                 output.push_str("\r\n");
@@ -890,4 +983,60 @@ fn ansi_style(style: Style) -> String {
         codes.push(format!("48;2;{r};{g};{b}"));
     }
     format!("\x1b[{}m", codes.join(";"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_does_not_exceed_requested_width() {
+        let app = crate::demo::app();
+
+        for width in [28, 40, 79, 92, 100, 120, 124] {
+            let frame = render(&app, width, 24);
+            for line_width in visible_line_widths(&frame) {
+                let max_safe_width = width.saturating_sub(1) as usize;
+                assert!(
+                    line_width <= max_safe_width,
+                    "rendered line width {line_width} exceeded safe terminal width {max_safe_width} for width {width}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn help_popup_fits_narrow_terminals() {
+        let mut app = crate::demo::app();
+        app.show_help = true;
+
+        let frame = render(&app, 40, 12);
+        for line_width in visible_line_widths(&frame) {
+            assert!(line_width <= 39);
+        }
+    }
+
+    fn visible_line_widths(frame: &str) -> Vec<usize> {
+        let mut widths = vec![0];
+        let mut chars = frame.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            match ch {
+                '\x1b' => {
+                    if chars.next() == Some('[') {
+                        for next in chars.by_ref() {
+                            if next.is_ascii_alphabetic() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                '\r' => {}
+                '\n' => widths.push(0),
+                _ => *widths.last_mut().expect("widths always has a line") += 1,
+            }
+        }
+
+        widths
+    }
 }

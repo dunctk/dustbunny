@@ -50,20 +50,25 @@ fn main() -> io::Result<()> {
     let tree = splash::scan_with_splash(&path, &mut terminal)?;
     let root_path = tree.get(tree.root()).path.clone();
     let mut app = App::new(tree, root_path);
+    let mut last_size = (0, 0);
+    let mut dirty = true;
 
     loop {
-        let (width, height) = terminal_size();
-        let frame = ui::render(&app, width, height);
-        terminal.draw(&frame)?;
+        let size = terminal_size();
+        if dirty || size != last_size {
+            let frame = ui::render(&app, size.0, size.1);
+            terminal.draw(&frame)?;
+            last_size = size;
+            dirty = false;
+        }
 
         if app.should_quit {
             break;
         }
 
-        let key = read_key()?;
-        app.handle_key(key);
-        if app.should_quit {
-            break;
+        if let Some(key) = read_key()? {
+            app.handle_key(key);
+            dirty = true;
         }
     }
 
