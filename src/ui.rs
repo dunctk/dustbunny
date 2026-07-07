@@ -4,19 +4,28 @@ use crate::app::{App, Focus};
 use crate::layout::Rect;
 use crate::model::{FileTree, NodeId, format_size};
 
-const BG: u8 = 235;
-const PANEL: u8 = 237;
-const PANEL_2: u8 = 238;
-const TEXT: u8 = 252;
-const MUTED: u8 = 244;
-const FAINT: u8 = 240;
-const SELECTED: u8 = 220;
-const SELECTED_TEXT: u8 = 235;
-const SELECTED_EDGE: u8 = 255;
-const WHITE: u8 = 255;
-const PALETTE: [u8; 10] = [119, 116, 111, 75, 99, 135, 205, 168, 215, 229];
+type Rgb = (u8, u8, u8);
+
+const BG: Rgb = (40, 43, 48);
+const HUB_BG: Rgb = (15, 15, 19);
+const DIVIDER: Rgb = (62, 65, 72);
+const TEXT: Rgb = (230, 232, 236);
+const MUTED: Rgb = (152, 156, 164);
+const FAINT: Rgb = (98, 102, 110);
+const WHITE: Rgb = (255, 255, 255);
+const SELECTED: Rgb = (255, 199, 61);
+const SELECTED_TEXT: Rgb = (48, 38, 8);
+const SELECTED_EDGE: Rgb = (255, 255, 255);
+const ACTIVE_PILL: Rgb = (64, 111, 220);
+const INACTIVE_PILL: Rgb = (188, 193, 201);
+const INACTIVE_PILL_TEXT: Rgb = (36, 39, 44);
+
 const START_ANGLE: f64 = 0.62 * PI;
 const END_ANGLE: f64 = 2.24 * PI;
+const HUE_START: f64 = 118.0;
+const HUE_SPAN: f64 = 300.0;
+const RADIAL_GAP: f64 = 0.22;
+const ANGULAR_SEAM_HALF: f64 = 0.16;
 
 pub fn render(app: &App, width: u16, height: u16) -> String {
     let width = width.max(80);
@@ -50,9 +59,12 @@ pub fn render(app: &App, width: u16, height: u16) -> String {
         height: body_height,
     };
 
+    let geometry = compute_geometry(map);
+    let segments = sunburst_segments(&app.tree, app.view_root, geometry.max_depth);
+
     draw_header(&mut canvas, app, header);
-    draw_sunburst(&mut canvas, app, map);
-    draw_sidebar(&mut canvas, app, side);
+    draw_sunburst(&mut canvas, app, map, &geometry, &segments);
+    draw_sidebar(&mut canvas, app, side, &segments);
     draw_status(&mut canvas, app, status);
 
     if app.show_help {
@@ -71,14 +83,14 @@ fn draw_header(canvas: &mut Canvas, app: &App, area: Rect) {
         left + 12,
         area.y + 1,
         "Disks and Folders",
-        Style::new(Some(WHITE), Some(25), true, false),
+        Style::new(Some(WHITE), Some(ACTIVE_PILL), true, false),
     );
     draw_pill(
         canvas,
         left + 31,
         area.y + 1,
         &truncate(&app.tree.get(app.view_root).name, 24),
-        Style::new(Some(TEXT), Some(PANEL_2), false, false),
+        Style::new(Some(INACTIVE_PILL_TEXT), Some(INACTIVE_PILL), false, false),
     );
     canvas.write(
         left,
@@ -95,7 +107,39 @@ fn draw_header(canvas: &mut Canvas, app: &App, area: Rect) {
     );
 }
 
-fn draw_sunburst(canvas: &mut Canvas, app: &App, area: Rect) {
+#[derive(Debug, Clone, Copy)]
+struct SunburstGeometry {
+    cx: f64,
+    cy_hi: f64,
+    center_radius: f64,
+    ring_width: f64,
+    max_depth: usize,
+}
+
+fn compute_geometry(area: Rect) -> SunburstGeometry {
+    let cx = area.x as f64 + area.width as f64 * 0.48;
+    let cy_hi = (area.y as f64 + area.height as f64 * 0.52) * 2.0;
+    let max_radius =
+        ((area.width as f64 / 2.08).min(area.height as f64 * 2.0 / 2.2) - 1.0).max(5.0);
+    let center_radius = (max_radius * 0.18).clamp(2.8, 5.5);
+    let max_depth = if max_radius > 13.0 { 5 } else { 4 };
+    let ring_width = ((max_radius - center_radius) / max_depth as f64).max(1.6);
+    SunburstGeometry {
+        cx,
+        cy_hi,
+        center_radius,
+        ring_width,
+        max_depth,
+    }
+}
+
+fn draw_sunburst(
+    canvas: &mut Canvas,
+    app: &App,
+    area: Rect,
+    geometry: &SunburstGeometry,
+    segments: &[Segment],
+) {
     fill_rect(canvas, area, ' ', Style::bg(BG));
     if area.width < 32 || area.height < 14 {
         canvas.write(
@@ -112,22 +156,21 @@ fn draw_sunburst(canvas: &mut Canvas, app: &App, area: Rect) {
     } else {
         "map"
     };
-    canvas.write(area.x + 3, area.y, focus, Style::fg(MUTED));
+    canvas.write(area.x + 3, area.y, focus, Style::fg(FAINT));
 
-    let cx = area.x as f64 + area.width as f64 * 0.48;
-    let cy_hi = (area.y as f64 + area.height as f64 * 0.52) * 2.0;
-    let max_radius =
-        ((area.width as f64 / 2.08).min(area.height as f64 * 2.0 / 2.2) - 1.0).max(5.0);
-    let center_radius = (max_radius * 0.18).clamp(2.8, 5.5);
-    let max_depth = if max_radius > 13.0 { 5 } else { 4 };
-    let ring_width = ((max_radius - center_radius) / max_depth as f64).max(1.4);
-    let segments = sunburst_segments(&app.tree, app.view_root, max_depth);
+    let SunburstGeometry {
+        cx,
+        cy_hi,
+        center_radius,
+        ring_width,
+        max_depth,
+    } = *geometry;
 
     for y in area.y..area.y + area.height {
         for x in area.x..area.x + area.width {
             let upper = sample_sunburst_color(
                 app,
-                &segments,
+                segments,
                 x as f64 + 0.5,
                 y as f64 * 2.0 + 0.5,
                 cx,
@@ -138,7 +181,7 @@ fn draw_sunburst(canvas: &mut Canvas, app: &App, area: Rect) {
             );
             let lower = sample_sunburst_color(
                 app,
-                &segments,
+                segments,
                 x as f64 + 0.5,
                 y as f64 * 2.0 + 1.5,
                 cx,
@@ -151,35 +194,14 @@ fn draw_sunburst(canvas: &mut Canvas, app: &App, area: Rect) {
         }
     }
 
-    for segment in &segments {
-        if segment.depth > 1 || segment.end - segment.start < 0.17 {
-            continue;
-        }
-        let radius = center_radius + (segment.depth as f64 + 0.52) * ring_width;
-        let angle = (segment.start + segment.end) / 2.0;
-        let x = (cx + angle.cos() * radius).round() as i32;
-        let y = ((cy_hi - angle.sin() * radius) / 2.0).round() as i32;
-        if x >= area.x as i32
-            && x < (area.x + area.width) as i32
-            && y >= area.y as i32
-            && y < (area.y + area.height) as i32
-        {
-            let node = app.tree.get(segment.node);
-            let label = truncate(&node.name, 14);
-            let style = if segment.node == app.selected {
-                Style::fg(SELECTED_TEXT).on_bg(SELECTED).bold()
-            } else {
-                Style::fg(BG).on_bg(segment.color).bold()
-            };
-            canvas.write(x as u16, y as u16, &label, style);
-        }
-    }
-
     let root = app.tree.get(app.view_root);
-    let size = format_size(root.size_bytes);
+    let size_str = format_size(root.size_bytes);
+    let mut parts = size_str.splitn(2, ' ');
+    let number = parts.next().unwrap_or_default();
+    let unit = parts.next().unwrap_or_default();
     let cy = cy_hi / 2.0;
-    canvas.write_centered(cx, cy - 0.4, &size, Style::fg(WHITE).on_bg(PANEL).bold());
-    canvas.write_centered(cx, cy + 0.8, "used", Style::fg(MUTED).on_bg(PANEL));
+    canvas.write_centered(cx, cy - 0.5, number, Style::fg(WHITE).on_bg(HUB_BG).bold());
+    canvas.write_centered(cx, cy + 0.6, unit, Style::fg(MUTED).on_bg(HUB_BG));
 
     let drop_y = area.y + area.height.saturating_sub(2);
     canvas.write(area.x + 4, drop_y, "◎", Style::fg(FAINT));
@@ -191,9 +213,9 @@ fn draw_sunburst(canvas: &mut Canvas, app: &App, area: Rect) {
     );
 }
 
-fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
+fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect, segments: &[Segment]) {
     fill_rect(canvas, area, ' ', Style::bg(BG));
-    draw_vline(canvas, area.x, area.y, area.height, Style::fg(PANEL_2));
+    draw_vline(canvas, area.x, area.y, area.height, Style::fg(DIVIDER));
 
     let selected = app.tree.get(app.selected);
     let title_y = area.y + 2;
@@ -228,10 +250,9 @@ fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
         );
         row += 1;
     }
-    for (idx, child) in visible_children.iter().enumerate() {
+    for child in visible_children.iter() {
         let node = app.tree.get(*child);
-        let palette_index = list_start + idx;
-        let color = PALETTE[palette_index % PALETTE.len()];
+        let color = depth0_color(segments, *child);
         let style = if *child == app.selected {
             Style::fg(SELECTED_TEXT).on_bg(SELECTED).bold()
         } else {
@@ -255,7 +276,7 @@ fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
         } else {
             Style::fg(color)
         };
-        let marker = if *child == app.selected { '▶' } else { '•' };
+        let marker = if *child == app.selected { '▶' } else { '●' };
         canvas.put(area.x + 3, row, marker, marker_style);
         canvas.write(
             area.x + 5,
@@ -291,7 +312,7 @@ fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
         area.x + 3,
         row,
         area.width.saturating_sub(6),
-        Style::fg(PANEL_2),
+        Style::fg(DIVIDER),
     );
 
     row += 2;
@@ -338,19 +359,27 @@ fn draw_sidebar(canvas: &mut Canvas, app: &App, area: Rect) {
     canvas.write(area.x + 3, footer, focus_label, Style::fg(FAINT));
 }
 
+fn depth0_color(segments: &[Segment], node: NodeId) -> Rgb {
+    segments
+        .iter()
+        .find(|segment| segment.depth == 0 && segment.node == node)
+        .map(|segment| segment.color)
+        .unwrap_or(FAINT)
+}
+
 fn draw_status(canvas: &mut Canvas, app: &App, area: Rect) {
-    fill_rect(canvas, area, ' ', Style::bg(PANEL));
+    fill_rect(canvas, area, ' ', Style::bg(BG));
     canvas.write(
         area.x + 3,
         area.y,
         "q quit   enter drill   backspace parent   arrows select   tab focus   r rescan   o open   ? help",
-        Style::fg(MUTED).on_bg(PANEL),
+        Style::fg(MUTED),
     );
     canvas.write(
         area.x + 3,
         area.y + 1,
         &truncate(&app.message, area.width.saturating_sub(6) as usize),
-        Style::fg(TEXT).on_bg(PANEL),
+        Style::fg(TEXT),
     );
 }
 
@@ -384,13 +413,13 @@ fn draw_help(canvas: &mut Canvas, width: u16, height: u16) {
         width: 50,
         height: 12,
     };
-    fill_rect(canvas, popup, ' ', Style::bg(PANEL));
-    outline(canvas, popup, Style::fg(FAINT).on_bg(PANEL));
+    fill_rect(canvas, popup, ' ', Style::bg(DIVIDER));
+    outline(canvas, popup, Style::fg(FAINT).on_bg(DIVIDER));
     canvas.write(
         popup.x + 2,
         popup.y,
         " help ",
-        Style::fg(WHITE).on_bg(PANEL).bold(),
+        Style::fg(WHITE).on_bg(DIVIDER).bold(),
     );
     let lines = [
         "q / Esc       quit",
@@ -409,24 +438,59 @@ fn draw_help(canvas: &mut Canvas, width: u16, height: u16) {
             popup.x + 2,
             popup.y + 1 + idx as u16,
             line,
-            Style::fg(TEXT).on_bg(PANEL),
+            Style::fg(TEXT).on_bg(DIVIDER),
         );
     }
 }
 
 fn sunburst_segments(tree: &FileTree, root: NodeId, max_depth: usize) -> Vec<Segment> {
     let mut segments = Vec::new();
-    collect_segments(
-        tree,
-        root,
-        START_ANGLE,
-        END_ANGLE,
-        0,
-        max_depth,
-        PALETTE[0],
-        &mut segments,
-    );
+    collect_segments(tree, root, START_ANGLE, END_ANGLE, 0, max_depth, &mut segments);
     segments
+}
+
+/// Hue sweeps continuously by angular position (like a color wheel segment),
+/// not by category identity — this matches how a single large wedge can visibly
+/// drift from green to orange across its own arc. Depth lightens/desaturates.
+fn segment_color(mid_angle: f64, depth: usize) -> Rgb {
+    let t = ((mid_angle - START_ANGLE) / (END_ANGLE - START_ANGLE)).clamp(0.0, 1.0);
+    let hue = HUE_START + t * HUE_SPAN;
+    let lightness = (0.50 + depth as f64 * 0.085).min(0.86);
+    let saturation = (0.62 - depth as f64 * 0.05).max(0.30);
+    hsl(hue, saturation, lightness)
+}
+
+fn hsl(hue: f64, saturation: f64, lightness: f64) -> Rgb {
+    let h = hue.rem_euclid(360.0) / 360.0;
+    let s = saturation.clamp(0.0, 1.0);
+    let l = lightness.clamp(0.0, 1.0);
+    if s == 0.0 {
+        let v = (l * 255.0).round() as u8;
+        return (v, v, v);
+    }
+    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let p = 2.0 * l - q;
+    let r = hue_channel(p, q, h + 1.0 / 3.0);
+    let g = hue_channel(p, q, h);
+    let b = hue_channel(p, q, h - 1.0 / 3.0);
+    (
+        (r * 255.0).round() as u8,
+        (g * 255.0).round() as u8,
+        (b * 255.0).round() as u8,
+    )
+}
+
+fn hue_channel(p: f64, q: f64, t: f64) -> f64 {
+    let t = t.rem_euclid(1.0);
+    if t < 1.0 / 6.0 {
+        p + (q - p) * 6.0 * t
+    } else if t < 0.5 {
+        q
+    } else if t < 2.0 / 3.0 {
+        p + (q - p) * (2.0 / 3.0 - t) * 6.0
+    } else {
+        p
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -440,13 +504,13 @@ fn sample_sunburst_color(
     center_radius: f64,
     ring_width: f64,
     max_depth: usize,
-) -> Option<u8> {
+) -> Option<Rgb> {
     let dx = x - cx;
     let dy = cy_hi - y_hi;
     let distance = (dx * dx + dy * dy).sqrt();
 
     if distance <= center_radius {
-        return Some(PANEL);
+        return Some(HUB_BG);
     }
 
     let depth = ((distance - center_radius) / ring_width).floor() as usize;
@@ -454,8 +518,8 @@ fn sample_sunburst_color(
         return None;
     }
 
-    let inner = center_radius + depth as f64 * ring_width + 0.10;
-    let outer = center_radius + (depth + 1) as f64 * ring_width - 0.10;
+    let inner = center_radius + depth as f64 * ring_width + RADIAL_GAP;
+    let outer = center_radius + (depth + 1) as f64 * ring_width - RADIAL_GAP;
     let angle = dy.atan2(dx);
     let selected_segment = segments.iter().rev().find(|segment| {
         segment.node == app.selected
@@ -484,11 +548,11 @@ fn sample_sunburst_color(
         segment.depth == depth && angle_in_segment(angle, segment.start, segment.end)
     })?;
 
-    if segment.node == app.selected {
-        Some(SELECTED)
-    } else {
-        Some(segment.color)
+    if angular_edge_distance(angle, segment.start, segment.end) * distance < ANGULAR_SEAM_HALF {
+        return None;
     }
+
+    Some(segment.color)
 }
 
 fn selected_segment_color(
@@ -497,7 +561,7 @@ fn selected_segment_color(
     distance: f64,
     inner: f64,
     outer: f64,
-) -> u8 {
+) -> Rgb {
     let radial_edge = (distance - inner).min(outer - distance);
     let angular_edge = angular_edge_distance(angle, segment.start, segment.end) * distance;
     if radial_edge <= 0.68 || angular_edge <= 0.68 {
@@ -509,7 +573,7 @@ fn selected_segment_color(
     }
 }
 
-fn put_half_block(canvas: &mut Canvas, x: u16, y: u16, upper: Option<u8>, lower: Option<u8>) {
+fn put_half_block(canvas: &mut Canvas, x: u16, y: u16, upper: Option<Rgb>, lower: Option<Rgb>) {
     match (upper, lower) {
         (None, None) => {}
         (Some(color), Some(other)) if color == other => {
@@ -534,7 +598,6 @@ fn collect_segments(
     end: f64,
     depth: usize,
     max_depth: usize,
-    inherited_color: u8,
     segments: &mut Vec<Segment>,
 ) {
     if depth >= max_depth {
@@ -556,39 +619,21 @@ fn collect_segments(
         .sum();
     let mut cursor = start;
 
-    for (idx, child) in children.into_iter().enumerate() {
+    for child in children {
         let size = tree.get(child).size_bytes.max(1);
         let span = (end - start) * (size as f64 / total as f64);
-        let child_end = if idx == 0 && span > end - start {
-            end
-        } else {
-            (cursor + span).min(end)
-        };
-        let gap = (child_end - cursor).min(0.025) * 0.22;
-        let color = if depth == 0 {
-            PALETTE[idx % PALETTE.len()]
-        } else {
-            inherited_color.saturating_sub((depth as u8).saturating_mul(6))
-        };
+        let child_end = (cursor + span).min(end);
 
-        if child_end - cursor > 0.01 {
+        if child_end - cursor > 0.0008 {
+            let color = segment_color((cursor + child_end) / 2.0, depth);
             segments.push(Segment {
                 node: child,
-                start: cursor + gap,
-                end: child_end - gap,
+                start: cursor,
+                end: child_end,
                 depth,
                 color,
             });
-            collect_segments(
-                tree,
-                child,
-                cursor + gap,
-                child_end - gap,
-                depth + 1,
-                max_depth,
-                color,
-                segments,
-            );
+            collect_segments(tree, child, cursor, child_end, depth + 1, max_depth, segments);
         }
         cursor = child_end;
     }
@@ -703,27 +748,27 @@ struct Segment {
     start: f64,
     end: f64,
     depth: usize,
-    color: u8,
+    color: Rgb,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Style {
-    fg: Option<u8>,
-    bg: Option<u8>,
+    fg: Option<Rgb>,
+    bg: Option<Rgb>,
     bold: bool,
     dim: bool,
 }
 
 impl Style {
-    const fn new(fg: Option<u8>, bg: Option<u8>, bold: bool, dim: bool) -> Self {
+    const fn new(fg: Option<Rgb>, bg: Option<Rgb>, bold: bool, dim: bool) -> Self {
         Self { fg, bg, bold, dim }
     }
 
-    const fn fg(color: u8) -> Self {
+    const fn fg(color: Rgb) -> Self {
         Self::new(Some(color), None, false, false)
     }
 
-    const fn bg(color: u8) -> Self {
+    const fn bg(color: Rgb) -> Self {
         Self::new(None, Some(color), false, false)
     }
 
@@ -732,7 +777,7 @@ impl Style {
         self
     }
 
-    const fn on_bg(mut self, color: u8) -> Self {
+    const fn on_bg(mut self, color: Rgb) -> Self {
         self.bg = Some(color);
         self
     }
@@ -835,11 +880,11 @@ fn ansi_style(style: Style) -> String {
     if style.dim {
         codes.push("2".to_string());
     }
-    if let Some(fg) = style.fg {
-        codes.push(format!("38;5;{fg}"));
+    if let Some((r, g, b)) = style.fg {
+        codes.push(format!("38;2;{r};{g};{b}"));
     }
-    if let Some(bg) = style.bg {
-        codes.push(format!("48;5;{bg}"));
+    if let Some((r, g, b)) = style.bg {
+        codes.push(format!("48;2;{r};{g};{b}"));
     }
     format!("\x1b[{}m", codes.join(";"))
 }

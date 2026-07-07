@@ -5,15 +5,15 @@ use std::path::Path;
 use crate::app::App;
 use crate::ui;
 
-const COLS: u16 = 112;
-const ROWS: u16 = 34;
+const COLS: u16 = 140;
+const ROWS: u16 = 42;
 const CELL_WIDTH: u16 = 9;
 const CELL_HEIGHT: u16 = 18;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Style {
-    fg: u8,
-    bg: u8,
+    fg: (u8, u8, u8),
+    bg: (u8, u8, u8),
     bold: bool,
     dim: bool,
 }
@@ -21,8 +21,8 @@ struct Style {
 impl Default for Style {
     fn default() -> Self {
         Self {
-            fg: 252,
-            bg: 235,
+            fg: (230, 232, 236),
+            bg: (40, 43, 48),
             bold: false,
             dim: false,
         }
@@ -111,17 +111,21 @@ fn apply_sgr(style: &mut Style, code: &str) {
                 style.bold = false;
                 style.dim = false;
             }
-            38 if codes.get(index + 1) == Some(&5) => {
-                if let Some(color) = codes.get(index + 2) {
-                    style.fg = *color as u8;
+            38 if codes.get(index + 1) == Some(&2) => {
+                if let (Some(r), Some(g), Some(b)) =
+                    (codes.get(index + 2), codes.get(index + 3), codes.get(index + 4))
+                {
+                    style.fg = (*r as u8, *g as u8, *b as u8);
                 }
-                index += 2;
+                index += 4;
             }
-            48 if codes.get(index + 1) == Some(&5) => {
-                if let Some(color) = codes.get(index + 2) {
-                    style.bg = *color as u8;
+            48 if codes.get(index + 1) == Some(&2) => {
+                if let (Some(r), Some(g), Some(b)) =
+                    (codes.get(index + 2), codes.get(index + 3), codes.get(index + 4))
+                {
+                    style.bg = (*r as u8, *g as u8, *b as u8);
                 }
-                index += 2;
+                index += 4;
             }
             _ => {}
         }
@@ -136,7 +140,7 @@ fn cells_to_svg(cells: &[Vec<Cell>]) -> String {
 
     svg.push_str(&format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-<rect width="100%" height="100%" fill="#0f1117"/>
+<rect width="100%" height="100%" fill="#282b30"/>
 <style>
 text {{
   font-family: "SFMono-Regular", "Cascadia Mono", "Liberation Mono", Menlo, Consolas, monospace;
@@ -156,7 +160,7 @@ text {{
             while end < row.len() && row[end].style.bg == bg {
                 end += 1;
             }
-            let color = xterm_color(bg);
+            let color = hex_color(bg);
             svg.push_str(&format!(
                 r#"<rect x="{}" y="{}" width="{}" height="{}" fill="{}"/>"#,
                 start as u16 * CELL_WIDTH,
@@ -189,7 +193,7 @@ text {{
                     r#"<text x="{}" y="{}" fill="{}"{}{}>{}</text>"#,
                     start as u16 * CELL_WIDTH,
                     row_index as u16 * CELL_HEIGHT + 2,
-                    xterm_color(style.fg),
+                    hex_color(style.fg),
                     if style.bold {
                         r#" font-weight="700""#
                     } else {
@@ -208,26 +212,8 @@ text {{
     svg
 }
 
-fn xterm_color(color: u8) -> String {
-    let (r, g, b) = match color {
-        0..=15 => ANSI_16[color as usize],
-        16..=231 => {
-            let n = color - 16;
-            let r = n / 36;
-            let g = (n % 36) / 6;
-            let b = n % 6;
-            (cube(r), cube(g), cube(b))
-        }
-        232..=255 => {
-            let value = 8 + (color - 232) * 10;
-            (value, value, value)
-        }
-    };
+fn hex_color((r, g, b): (u8, u8, u8)) -> String {
     format!("#{r:02x}{g:02x}{b:02x}")
-}
-
-fn cube(value: u8) -> u8 {
-    if value == 0 { 0 } else { 55 + value * 40 }
 }
 
 fn escape_xml(value: &str) -> String {
@@ -237,22 +223,3 @@ fn escape_xml(value: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
 }
-
-const ANSI_16: [(u8, u8, u8); 16] = [
-    (0, 0, 0),
-    (128, 0, 0),
-    (0, 128, 0),
-    (128, 128, 0),
-    (0, 0, 128),
-    (128, 0, 128),
-    (0, 128, 128),
-    (192, 192, 192),
-    (128, 128, 128),
-    (255, 0, 0),
-    (0, 255, 0),
-    (255, 255, 0),
-    (0, 0, 255),
-    (255, 0, 255),
-    (0, 255, 255),
-    (255, 255, 255),
-];

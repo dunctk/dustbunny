@@ -29,18 +29,18 @@ pub fn app() -> App {
     let library = add_dir(&mut tree, root_id, "Library", 18 * GB);
     let hidden = add_dir(&mut tree, root_id, "hidden space", 7 * GB);
 
-    add_dir(&mut tree, users, "dunc", 122 * GB);
+    let dunc = add_dir(&mut tree, users, "dunc", 122 * GB);
     add_dir(&mut tree, users, "Shared", 38 * GB);
     add_dir(&mut tree, users, "Downloads", 24 * GB);
     add_file(&mut tree, users, "photo-library.photoslibrary", 14 * GB);
 
-    add_dir(&mut tree, projects, "rust", 35 * GB);
+    let rust = add_dir(&mut tree, projects, "rust", 35 * GB);
     add_dir(&mut tree, projects, "video-renders", 29 * GB);
-    add_dir(&mut tree, projects, "node_modules", 21 * GB);
+    let node_modules = add_dir(&mut tree, projects, "node_modules", 21 * GB);
     add_file(&mut tree, projects, "archive.tar.zst", 11 * GB);
 
     add_dir(&mut tree, containers, "Docker.raw", 44 * GB);
-    add_dir(&mut tree, containers, "postgres-volumes", 15 * GB);
+    let postgres = add_dir(&mut tree, containers, "postgres-volumes", 15 * GB);
     add_dir(&mut tree, containers, "build-cache", 13 * GB);
 
     add_file(&mut tree, apps, "Xcode.app", 18 * GB);
@@ -58,7 +58,7 @@ pub fn app() -> App {
     add_file(&mut tree, media, "screen-recordings", 7 * GB);
     add_file(&mut tree, media, "waveforms", 3 * GB);
 
-    add_dir(&mut tree, library, "Caches", 9 * GB);
+    let caches = add_dir(&mut tree, library, "Caches", 9 * GB);
     add_dir(&mut tree, library, "Application Support", 6 * GB);
     add_file(&mut tree, library, "Safari.db", 2 * GB);
     add_file(&mut tree, library, "tiny leftovers", 900 * MB);
@@ -66,6 +66,38 @@ pub fn app() -> App {
     add_file(&mut tree, hidden, "purgeable snapshots", 4 * GB);
     add_file(&mut tree, hidden, "local time machine", 2 * GB);
     add_file(&mut tree, hidden, "smaller objects", 850 * MB);
+
+    // Deeper nesting so the sunburst fills its outer rings like a real, richly nested disk.
+    let dunc_library = add_dir(&mut tree, dunc, "Library", 45 * GB);
+    add_dir(&mut tree, dunc, "Projects", 30 * GB);
+    add_dir(&mut tree, dunc, "Downloads", 20 * GB);
+    add_dir(&mut tree, dunc, "Documents", 15 * GB);
+    add_dir(&mut tree, dunc, "Pictures", 12 * GB);
+
+    let dunc_caches = add_dir(&mut tree, dunc_library, "Caches", 22 * GB);
+    add_dir(&mut tree, dunc_library, "Application Support", 15 * GB);
+    add_dir(&mut tree, dunc_library, "Containers", 8 * GB);
+
+    add_file(&mut tree, dunc_caches, "com.docker.docker", 10 * GB);
+    add_file(&mut tree, dunc_caches, "Homebrew", 7 * GB);
+    add_file(&mut tree, dunc_caches, "pip", 5 * GB);
+
+    add_file(&mut tree, rust, "target", 20 * GB);
+    add_file(&mut tree, rust, "node_modules", 8 * GB);
+    add_file(&mut tree, rust, "src", 7 * GB);
+
+    add_file(&mut tree, node_modules, "@babel", 5 * GB);
+    add_file(&mut tree, node_modules, "typescript", 4 * GB);
+    add_file(&mut tree, node_modules, "webpack", 4 * GB);
+    add_file(&mut tree, node_modules, "eslint", 3 * GB);
+    add_file(&mut tree, node_modules, "other packages", 5 * GB);
+
+    add_file(&mut tree, postgres, "pgdata", 10 * GB);
+    add_file(&mut tree, postgres, "wal", 5 * GB);
+
+    add_file(&mut tree, caches, "GPUCache", 4 * GB);
+    add_file(&mut tree, caches, "Code Cache", 3 * GB);
+    add_file(&mut tree, caches, "Others", 2 * GB);
 
     App::new(tree, root_path)
 }
