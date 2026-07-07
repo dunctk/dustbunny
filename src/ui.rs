@@ -12,6 +12,7 @@ const MUTED: u8 = 244;
 const FAINT: u8 = 240;
 const SELECTED: u8 = 220;
 const SELECTED_TEXT: u8 = 235;
+const SELECTED_EDGE: u8 = 255;
 const WHITE: u8 = 255;
 const PALETTE: [u8; 10] = [119, 116, 111, 75, 99, 135, 205, 168, 215, 229];
 const START_ANGLE: f64 = 0.62 * PI;
@@ -165,12 +166,12 @@ fn draw_sunburst(canvas: &mut Canvas, app: &App, area: Rect) {
         {
             let node = app.tree.get(segment.node);
             let label = truncate(&node.name, 14);
-            canvas.write(
-                x as u16,
-                y as u16,
-                &label,
-                Style::fg(BG).on_bg(segment.color).bold(),
-            );
+            let style = if segment.node == app.selected {
+                Style::fg(SELECTED_TEXT).on_bg(SELECTED).bold()
+            } else {
+                Style::fg(BG).on_bg(segment.color).bold()
+            };
+            canvas.write(x as u16, y as u16, &label, style);
         }
     }
 
@@ -455,11 +456,30 @@ fn sample_sunburst_color(
 
     let inner = center_radius + depth as f64 * ring_width + 0.10;
     let outer = center_radius + (depth + 1) as f64 * ring_width - 0.10;
+    let angle = dy.atan2(dx);
+    let selected_segment = segments.iter().rev().find(|segment| {
+        segment.node == app.selected
+            && segment.depth == depth
+            && angle_in_segment(angle, segment.start, segment.end)
+    });
+
+    if let Some(segment) = selected_segment
+        && distance >= inner - 0.85
+        && distance <= outer + 0.85
+    {
+        if distance < inner || distance > outer {
+            return Some(SELECTED_EDGE);
+        }
+
+        return Some(selected_segment_color(
+            segment, angle, distance, inner, outer,
+        ));
+    }
+
     if distance < inner || distance > outer {
         return None;
     }
 
-    let angle = dy.atan2(dx);
     let segment = segments.iter().rev().find(|segment| {
         segment.depth == depth && angle_in_segment(angle, segment.start, segment.end)
     })?;
@@ -468,6 +488,24 @@ fn sample_sunburst_color(
         Some(SELECTED)
     } else {
         Some(segment.color)
+    }
+}
+
+fn selected_segment_color(
+    segment: &Segment,
+    angle: f64,
+    distance: f64,
+    inner: f64,
+    outer: f64,
+) -> u8 {
+    let radial_edge = (distance - inner).min(outer - distance);
+    let angular_edge = angular_edge_distance(angle, segment.start, segment.end) * distance;
+    if radial_edge <= 0.68 || angular_edge <= 0.68 {
+        SELECTED_EDGE
+    } else if radial_edge <= 1.22 || angular_edge <= 1.22 {
+        SELECTED_TEXT
+    } else {
+        SELECTED
     }
 }
 
@@ -561,6 +599,14 @@ fn angle_in_segment(mut angle: f64, start: f64, end: f64) -> bool {
         angle += 2.0 * PI;
     }
     angle >= start && angle <= end
+}
+
+fn angular_edge_distance(angle: f64, start: f64, end: f64) -> f64 {
+    let mut normalized = angle;
+    while normalized < start {
+        normalized += 2.0 * PI;
+    }
+    (normalized - start).min(end - normalized).max(0.0)
 }
 
 fn draw_pill(canvas: &mut Canvas, x: u16, y: u16, label: &str, style: Style) {
