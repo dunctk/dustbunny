@@ -67,29 +67,19 @@ pub fn app() -> App {
     add_file(&mut tree, hidden, "local time machine", 2 * GB);
     add_file(&mut tree, hidden, "smaller objects", 850 * MB);
 
-    // Deeper nesting so the sunburst fills its outer rings like a real, richly nested disk.
-    let dunc_library = add_dir(&mut tree, dunc, "Library", 45 * GB);
-    add_dir(&mut tree, dunc, "Projects", 30 * GB);
-    add_dir(&mut tree, dunc, "Downloads", 20 * GB);
-    add_dir(&mut tree, dunc, "Documents", 15 * GB);
-    add_dir(&mut tree, dunc, "Pictures", 12 * GB);
+    // A little extra nesting so the sunburst's outer rings aren't empty, but kept
+    // chunky (few, large children per level) — this renderer only has ~140 columns
+    // to work with, so many thin slivers alias into speckly noise instead of clean bands.
+    let dunc_library = add_dir(&mut tree, dunc, "Library", 70 * GB);
+    add_dir(&mut tree, dunc, "Documents", 52 * GB);
 
-    let dunc_caches = add_dir(&mut tree, dunc_library, "Caches", 22 * GB);
-    add_dir(&mut tree, dunc_library, "Application Support", 15 * GB);
-    add_dir(&mut tree, dunc_library, "Containers", 8 * GB);
-
-    add_file(&mut tree, dunc_caches, "com.docker.docker", 10 * GB);
-    add_file(&mut tree, dunc_caches, "Homebrew", 7 * GB);
-    add_file(&mut tree, dunc_caches, "pip", 5 * GB);
+    add_file(&mut tree, dunc_library, "Caches", 45 * GB);
+    add_file(&mut tree, dunc_library, "Application Support", 25 * GB);
 
     add_file(&mut tree, rust, "target", 20 * GB);
-    add_file(&mut tree, rust, "node_modules", 8 * GB);
-    add_file(&mut tree, rust, "src", 7 * GB);
+    add_file(&mut tree, rust, "other", 15 * GB);
 
-    add_file(&mut tree, node_modules, "@babel", 5 * GB);
-    add_file(&mut tree, node_modules, "typescript", 4 * GB);
-    add_file(&mut tree, node_modules, "webpack", 4 * GB);
-    add_file(&mut tree, node_modules, "eslint", 3 * GB);
+    add_file(&mut tree, node_modules, "large packages", 16 * GB);
     add_file(&mut tree, node_modules, "other packages", 5 * GB);
 
     add_file(&mut tree, postgres, "pgdata", 10 * GB);

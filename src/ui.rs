@@ -24,8 +24,11 @@ const START_ANGLE: f64 = 0.62 * PI;
 const END_ANGLE: f64 = 2.24 * PI;
 const HUE_START: f64 = 118.0;
 const HUE_SPAN: f64 = 300.0;
-const RADIAL_GAP: f64 = 0.22;
-const ANGULAR_SEAM_HALF: f64 = 0.16;
+const RADIAL_GAP: f64 = 0.08;
+const ANGULAR_SEAM_HALF: f64 = 0.05;
+const SELECTED_HALO: f64 = 0.30;
+const SELECTED_EDGE_WIDTH: f64 = 0.22;
+const SELECTED_TEXT_WIDTH: f64 = 0.5;
 
 pub fn render(app: &App, width: u16, height: u16) -> String {
     let width = width.max(80);
@@ -528,8 +531,8 @@ fn sample_sunburst_color(
     });
 
     if let Some(segment) = selected_segment
-        && distance >= inner - 0.85
-        && distance <= outer + 0.85
+        && distance >= inner - SELECTED_HALO
+        && distance <= outer + SELECTED_HALO
     {
         if distance < inner || distance > outer {
             return Some(SELECTED_EDGE);
@@ -564,9 +567,9 @@ fn selected_segment_color(
 ) -> Rgb {
     let radial_edge = (distance - inner).min(outer - distance);
     let angular_edge = angular_edge_distance(angle, segment.start, segment.end) * distance;
-    if radial_edge <= 0.68 || angular_edge <= 0.68 {
+    if radial_edge <= SELECTED_EDGE_WIDTH || angular_edge <= SELECTED_EDGE_WIDTH {
         SELECTED_EDGE
-    } else if radial_edge <= 1.22 || angular_edge <= 1.22 {
+    } else if radial_edge <= SELECTED_TEXT_WIDTH || angular_edge <= SELECTED_TEXT_WIDTH {
         SELECTED_TEXT
     } else {
         SELECTED
